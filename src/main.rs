@@ -11,8 +11,14 @@ mod color;
 mod fragment;
 mod shaders;
 mod camera;
+mod texturas;
+mod skybox;
+mod ray_intersect;
+mod material;
 
 use framebuffer::Framebuffer;
+use nalgebra_glm::normalize;
+use crate::material::Material;
 use vertex::Vertex;
 use obj::Obj;
 use camera::Camera;
@@ -24,6 +30,11 @@ use crate::shaders::vertex_shader;
 use noise::{NoiseFn, Simplex};
 use fastnoise_lite::FastNoiseLite;
 use crate::shaders::vertex_shader_simplex;
+use crate::ray_intersect::{Intersect, RayIntersect};
+use crate::texturas::TextureManager;
+use crate::skybox::Skybox;
+use image::open;
+
 
 pub struct Uniforms {
     model_matrix: Mat4,
@@ -164,6 +175,60 @@ fn crear_ruido_cellular_puntas() -> FastNoiseLite {
     noise 
 }
 
+pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Box<dyn RayIntersect>], color_fondo: &Color) -> Color {
+    let mut intersect = Intersect::empty();
+    let mut zbuffer = f32::INFINITY;
+
+    for object in objects {
+        let tmp = object.ray_intersect(ray_origin, ray_direction);
+        if tmp.is_intersecting && tmp.distance < zbuffer {
+            zbuffer = tmp.distance;
+            intersect = tmp;
+        }
+    }
+
+    if !intersect.is_intersecting {
+        return color_fondo.clone();  
+    }
+
+    let mut color = intersect.material.diffuse.clone();
+    if let Some(ref textura) = intersect.material.textura {
+        color = intersect.material.get_diffuse_color(intersect.u, intersect.v);
+    }
+
+    color
+}
+
+fn render_skybox(
+    framebuffer: &mut Framebuffer, objects: &[Box<dyn RayIntersect>], camera: &Camera, color_fondo: &Color
+) {
+    let width = framebuffer.width as f32;
+    let height = framebuffer.height as f32;
+    let aspect_ratio = width / height;
+    let fov = PI / 3.0;
+    let perspective_scale = (fov * 0.5).tan();
+
+    for y in 0..framebuffer.height {
+        for x in 0..framebuffer.width {
+            let screen_x = (2.0 * x as f32) / width - 1.0;
+            let screen_y = -(2.0 * y as f32) / height + 1.0;
+
+            let screen_x = screen_x * aspect_ratio * perspective_scale;
+            let screen_y = screen_y * perspective_scale;
+
+           
+            let ray_direction = normalize(&Vec3::new(screen_x, screen_y, -1.0));
+            let rotated_direction = camera.base_change(&ray_direction);
+
+           
+            let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects, color_fondo);
+
+            framebuffer.set_current_color(pixel_color.to_hex());
+            framebuffer.point(x, y, 1.0);
+        }
+    }
+}
+
 fn main() {
     let window_width = 1000;
     let window_height = 800;
@@ -182,6 +247,19 @@ fn main() {
 
     window.set_position(500, 500);
     window.update();
+
+    let mut manejador_textura = TextureManager::new();
+    let imagen_cielo = image::open("assets/sky1.jpg").unwrap().into_rgba8();
+    manejador_textura.cargar_textura("cielo", imagen_cielo);
+    let textura_cielo = manejador_textura.get_textura("cielo");
+
+    let cielo = Material::new(
+        Color::new(255, 255, 255),  
+        0.0, 
+        [0.0, 0.0],
+        textura_cielo.clone(),
+        None
+    );  
 
     framebuffer.set_background_color(0x333355);
 
@@ -202,7 +280,7 @@ fn main() {
     let scale = 1.0f32;
 
     let mut camera = Camera::new(
-        Vec3::new(0.0, 0.0, 5.0),
+        Vec3::new(50.0, 0.0, 150.0),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0)
     );
@@ -215,6 +293,7 @@ fn main() {
 
     let mut time = 0;
     let mut shader_actual = 1;
+
 
     while window.is_open() {
         if window.is_key_down(Key::Escape) {
@@ -263,20 +342,43 @@ fn main() {
         let projection_matrix = create_perspective_matrix(window_width as f32, window_height as f32);
         let viewport_matrix = create_viewport_matrix(framebuffer_width as f32, framebuffer_height as f32);
 
+
         let noise_perlin = crear_ruido_perlin(); 
         let noise_cellular = crear_ruido_cellular(); 
 
-        let model_matrix_1 = create_model_matrix(Vec3::new(20.0, 0.0, 0.0), scale, rotation);
-        let model_matrix_anillos = create_model_matrix(Vec3::new(20.0, 0.0, 0.0), scale, rotation_anillos);
-        let model_matrix_2 = create_model_matrix(Vec3::new(10.0, 0.0, 0.0), scale, rotation);
+        let centro = Vec3::new(0.0, 0.0, 0.0);
+        let grande = 10000.0;
+        let color_fondo = Color::new(135, 206, 235);
+
+        let mut objects: Vec<Box<dyn RayIntersect>> = vec![
+            Box::new(Skybox {
+                center: centro,
+                size: grande,
+                materials: [cielo.clone(), cielo.clone(), cielo.clone(), cielo.clone(), cielo.clone(), cielo.clone()],
+            }),
+        ];
+        
+
+        render_skybox(&mut framebuffer, &objects, &camera, &color_fondo);
+
+        let velocidad_orbita = 0.02; 
+        let radios_orbitales = vec![
+            10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0
+        ];
+        let velocidades_orbitales = vec![0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01];
+
+
+        let model_matrix_1 = create_model_matrix(Vec3::new(radios_orbitales[1] * (time as f32 * velocidades_orbitales[1]).cos(), radios_orbitales[1] * (time as f32 * velocidades_orbitales[1]).sin(), 0.0), scale, rotation);
+        let model_matrix_anillos = create_model_matrix(Vec3::new(radios_orbitales[1] * (time as f32 * velocidades_orbitales[1]).cos(), radios_orbitales[1] * (time as f32 * velocidades_orbitales[1]).sin(), 0.0), scale, rotation_anillos);
+        let model_matrix_2 = create_model_matrix(Vec3::new(radios_orbitales[0] * (time as f32 * velocidades_orbitales[0]).cos(), radios_orbitales[0] * (time as f32 * velocidades_orbitales[0]).sin(), 0.0), scale, rotation);
         let model_matrix_3 = create_model_matrix(Vec3::new(0.0, 0.0, 0.0), scale, rotation);
-        let model_matrix_4 = create_model_matrix(Vec3::new(30.0, 0.0, 0.0), scale, rotation);
-        let model_matrix_5 = create_model_matrix(Vec3::new(40.0, 0.0, 0.0), scale, rotation);
-        let model_matrix_6 = create_model_matrix(Vec3::new(50.0, 0.0, 0.0), scale, rotation);
-        let model_matrix_7 = create_model_matrix(Vec3::new(60.0, 0.0, 0.0), scale, rotation);
-        let model_matrix_8 = create_model_matrix(Vec3::new(70.0, 0.0, 0.0), scale, rotation);
-        let model_matrix_9 = create_model_matrix(Vec3::new(80.0, 0.0, 0.0), scale, rotation);
-        let model_matrix_10 = create_model_matrix(Vec3::new(90.0, 0.0, 0.0), scale, rotation);
+        let model_matrix_4 = create_model_matrix(Vec3::new(radios_orbitales[2] * (time as f32 * velocidades_orbitales[2]).cos(), radios_orbitales[2] * (time as f32 * velocidades_orbitales[2]).sin(), 0.0), scale, rotation);
+        let model_matrix_5 = create_model_matrix(Vec3::new(radios_orbitales[3] * (time as f32 * velocidades_orbitales[3]).cos(), radios_orbitales[3] * (time as f32 * velocidades_orbitales[3]).sin(), 0.0), scale, rotation);
+        let model_matrix_6 = create_model_matrix(Vec3::new(radios_orbitales[4] * (time as f32 * velocidades_orbitales[4]).cos(), radios_orbitales[4] * (time as f32 * velocidades_orbitales[4]).sin(), 0.0), scale, rotation);
+        let model_matrix_7 = create_model_matrix(Vec3::new(radios_orbitales[5] * (time as f32 * velocidades_orbitales[5]).cos(), radios_orbitales[5] * (time as f32 * velocidades_orbitales[5]).sin(), 0.0), scale, rotation);
+        let model_matrix_8 = create_model_matrix(Vec3::new(radios_orbitales[6] * (time as f32 * velocidades_orbitales[6]).cos(), radios_orbitales[6] * (time as f32 * velocidades_orbitales[6]).sin(), 0.0), scale, rotation);
+        let model_matrix_9 = create_model_matrix(Vec3::new(radios_orbitales[7] * (time as f32 * velocidades_orbitales[7]).cos(), radios_orbitales[7] * (time as f32 * velocidades_orbitales[7]).sin(), 0.0), scale, rotation);
+        let model_matrix_10 = create_model_matrix(Vec3::new(radios_orbitales[8] * (time as f32 * velocidades_orbitales[8]).cos(), radios_orbitales[8] * (time as f32 * velocidades_orbitales[8]).sin(), 0.0), scale, rotation);
 
         let uniforms_gaseoso = Uniforms { 
             model_matrix: model_matrix_1, 
@@ -398,7 +500,7 @@ fn main() {
             let z_offset = radio_orbita * (time as f32 * velocidad_orbita).sin();
 
                 
-            let translacion_luna = Vec3::new(40.0, 0.0, 0.0) + Vec3::new(x_offset, 0.0, z_offset);
+            let translacion_luna = Vec3::new(radios_orbitales[3] * (time as f32 * velocidades_orbitales[3]).cos(), radios_orbitales[3] * (time as f32 * velocidades_orbitales[3]).sin(), 0.0) + Vec3::new(x_offset, 0.0, z_offset);
             let escala_luna = 0.5; 
             let model_matrix_luna = create_model_matrix(translacion_luna, escala_luna, rotation);
 

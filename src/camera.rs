@@ -86,4 +86,16 @@ impl Camera {
             false
         }
     }
+
+    pub fn base_change(&self, direction: &Vec3) -> Vec3 {
+        let forward = self.get_forward();
+        let right = self.get_right();
+        let up = self.get_up();
+
+        Vec3::new(
+            right.dot(direction),
+            up.dot(direction),
+            forward.dot(direction),
+        )
+    }
 }
