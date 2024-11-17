@@ -27,3 +27,7 @@ Los controles implementados para el movimiento de la camara en el proyecto son l
 - `→` para poder mover la camara hacia la derecha.
 
 - `←` para poder mover la camara hacia la izquierda.
+
+Video de la ejecución del proyecto
+
+https://github.com/user-attachments/assets/d2aba1ad-4761-4777-9274-514108501d91
