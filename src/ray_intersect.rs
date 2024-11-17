@@ -39,7 +39,7 @@ impl Intersect {
     }
 }
 
-pub trait RayIntersect: Any {
+pub trait RayIntersect: Sync + Send {
     fn ray_intersect(&self, ray_origin: &Vec3, ray_direction: &Vec3) -> Intersect;
     fn get_uv(&self, point: &Vec3) -> (f32, f32);
     fn as_any_mut(&mut self) -> &mut dyn Any;

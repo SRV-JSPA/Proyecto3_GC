@@ -11,3 +11,9 @@ fastnoise-lite = "1.1.1"
 rand = "0.8.5"
 noise = "0.9"
 image = "0.23"
+rayon = "1.5"
+
+[profile.release]
+opt-level = 3         # El nivel de optimización 3 es el más alto en cuanto a tiempo de ejecución
+lto = "fat"           # Activar Link Time Optimization (fat LTO)
+codegen-units = 1     # Configura todas las unidades de código en una sola, mejor para optimización

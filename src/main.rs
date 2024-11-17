@@ -34,6 +34,9 @@ use crate::ray_intersect::{Intersect, RayIntersect};
 use crate::texturas::TextureManager;
 use crate::skybox::Skybox;
 use image::open;
+use std::time::Instant;
+use rayon::prelude::*;
+use std::sync::{Mutex, Arc};
 
 
 pub struct Uniforms {
@@ -200,7 +203,10 @@ pub fn cast_ray(ray_origin: &Vec3, ray_direction: &Vec3, objects: &[Box<dyn RayI
 }
 
 fn render_skybox(
-    framebuffer: &mut Framebuffer, objects: &[Box<dyn RayIntersect>], camera: &Camera, color_fondo: &Color
+    framebuffer: &mut Framebuffer, 
+    objects: &[Box<dyn RayIntersect>], 
+    camera: &Camera, 
+    color_fondo: &Color
 ) {
     let width = framebuffer.width as f32;
     let height = framebuffer.height as f32;
@@ -208,26 +214,27 @@ fn render_skybox(
     let fov = PI / 3.0;
     let perspective_scale = (fov * 0.5).tan();
 
-    for y in 0..framebuffer.height {
-        for x in 0..framebuffer.width {
-            let screen_x = (2.0 * x as f32) / width - 1.0;
+    framebuffer
+        .buffer
+        .par_chunks_mut(framebuffer.width) 
+        .enumerate()
+        .for_each(|(y, row)| { 
             let screen_y = -(2.0 * y as f32) / height + 1.0;
-
-            let screen_x = screen_x * aspect_ratio * perspective_scale;
             let screen_y = screen_y * perspective_scale;
 
-           
-            let ray_direction = normalize(&Vec3::new(screen_x, screen_y, -1.0));
-            let rotated_direction = camera.base_change(&ray_direction);
+            for x in 0..framebuffer.width {
+                let screen_x = (2.0 * x as f32) / width - 1.0;
+                let screen_x = screen_x * aspect_ratio * perspective_scale;
 
-           
-            let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects, color_fondo);
+                let ray_direction = normalize(&Vec3::new(screen_x, screen_y, -1.0));
+                let rotated_direction = camera.base_change(&ray_direction);
 
-            framebuffer.set_current_color(pixel_color.to_hex());
-            framebuffer.point(x, y, 1.0);
-        }
-    }
+                let pixel_color = cast_ray(&camera.eye, &rotated_direction, objects, color_fondo);
+                row[x] = pixel_color.to_hex(); 
+            }
+        });
 }
+
 
 fn main() {
     let window_width = 1000;
@@ -294,8 +301,11 @@ fn main() {
     let mut time = 0;
     let mut shader_actual = 1;
 
+    const FRAME_DELAY: Duration = Duration::from_millis(16);
+
 
     while window.is_open() {
+        let start_time = Instant::now();
         if window.is_key_down(Key::Escape) {
             break;
         }
@@ -333,7 +343,7 @@ fn main() {
 
         time += 1;
 
-        handle_input(&window, &mut camera);
+        
 
         framebuffer.clear();
 
@@ -479,6 +489,8 @@ fn main() {
             noise: crear_ruido_variado() 
         };
 
+        handle_input(&window, &mut camera, &uniforms_cellular_puntas);
+
 
         framebuffer.set_current_color(0xFFDDDD);
 
@@ -525,7 +537,10 @@ fn main() {
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
             .unwrap();
 
-        std::thread::sleep(frame_delay);
+        let elapsed = start_time.elapsed();
+        if elapsed < FRAME_DELAY {
+            std::thread::sleep(FRAME_DELAY - elapsed);
+        }
     }
 }
 
@@ -535,37 +550,57 @@ fn render_shader(
     vertex_array: &[Vertex],
     fragment_shader_fn: fn(&Fragment, &Uniforms) -> Color
 ) {
-    let mut transformed_vertices = Vec::with_capacity(vertex_array.len());
-    for vertex in vertex_array {
-        let transformed = vertex_shader(vertex, uniforms);
-        transformed_vertices.push(transformed);
-    }
+    let width = framebuffer.width;
+    let height = framebuffer.height;
 
-    let mut triangles = Vec::new();
-    for i in (0..transformed_vertices.len()).step_by(3) {
-        if i + 2 < transformed_vertices.len() {
-            triangles.push([
-                transformed_vertices[i].clone(),
-                transformed_vertices[i + 1].clone(),
-                transformed_vertices[i + 2].clone(),
-            ]);
+    
+    let color_buffer = Arc::new(Mutex::new(vec![0; width * height]));
+    let depth_buffer = Arc::new(Mutex::new(vec![f32::INFINITY; width * height]));
+
+    let transformed_vertices: Vec<_> = vertex_array
+        .par_iter()
+        .map(|vertex| vertex_shader(vertex, uniforms))
+        .collect();
+
+    let triangles: Vec<_> = transformed_vertices
+        .chunks(3)
+        .filter(|chunk| chunk.len() == 3)
+        .map(|chunk| [chunk[0].clone(), chunk[1].clone(), chunk[2].clone()])
+        .collect();
+
+    triangles.par_iter().for_each(|tri| {
+        let fragments = triangle(&tri[0], &tri[1], &tri[2]);
+
+        for fragment in fragments {
+            let x = fragment.position.x as usize;
+            let y = fragment.position.y as usize;
+
+            if x < width && y < height {
+                let index = y * width + x;
+                let shaded_color = fragment_shader_fn(&fragment, uniforms).to_hex();
+
+                
+                let mut color_buffer = color_buffer.lock().unwrap();
+                let mut depth_buffer = depth_buffer.lock().unwrap();
+
+                
+                if fragment.depth < depth_buffer[index] {
+                    color_buffer[index] = shaded_color;
+                    depth_buffer[index] = fragment.depth;
+                }
+            }
         }
-    }
+    });
 
-    let mut fragments = Vec::new();
-    for tri in &triangles {
-        fragments.extend(triangle(&tri[0], &tri[1], &tri[2]));
-    }
+    
+    let color_buffer = color_buffer.lock().unwrap();
+    let depth_buffer = depth_buffer.lock().unwrap();
 
-    for fragment in fragments {
-        let x = fragment.position.x as usize;
-        let y = fragment.position.y as usize;
-
-        if x < framebuffer.width && y < framebuffer.height {
-            let shaded_color = fragment_shader_fn(&fragment, &uniforms);
-            let color = shaded_color.to_hex();
-            framebuffer.set_current_color(color);
-            framebuffer.point(x, y, fragment.depth);
+    for y in 0..height {
+        for x in 0..width {
+            let index = y * width + x;
+            framebuffer.set_current_color(color_buffer[index]);
+            framebuffer.point(x, y, depth_buffer[index]);
         }
     }
 }
@@ -611,8 +646,8 @@ fn render_shader_simplex(
     }
 }
 
-fn handle_input(window: &Window, camera: &mut Camera) {
-    let movement_speed = 0.1; 
+fn handle_input(window: &Window, camera: &mut Camera, uniforms_cellular_puntas: &Uniforms) {
+    let movement_speed = 1.0; 
     let rotation_speed = PI / 50.0; 
 
     let mut movement = Vec3::new(0.0, 0.0, 0.0);
@@ -652,13 +687,6 @@ fn handle_input(window: &Window, camera: &mut Camera) {
     }
     if window.is_key_down(Key::Down) {
         camera.rotate_x(-rotation_speed);
-    }
-
-    if window.is_key_down(Key::Z) {
-        camera.zoom(movement_speed);
-    }
-    if window.is_key_down(Key::X) {
-        camera.zoom(-movement_speed);
     }
 }
 
