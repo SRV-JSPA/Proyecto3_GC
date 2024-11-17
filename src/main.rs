@@ -375,20 +375,32 @@ fn main() {
         let radios_orbitales = vec![
             10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0
         ];
-        let velocidades_orbitales = vec![0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01];
+        let velocidades_orbitales = vec![0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009];
 
+        let velocidades_rotacion = vec![0.01, 0.015, 0.02, 0.025, 0.03, 0.035, 0.04, 0.045, 0.05, 0.056];
 
-        let model_matrix_1 = create_model_matrix(Vec3::new(radios_orbitales[1] * (time as f32 * velocidades_orbitales[1]).cos(), radios_orbitales[1] * (time as f32 * velocidades_orbitales[1]).sin(), 0.0), scale, rotation);
+        let rotacion_planeta_1 = Vec3::new(0.0, time as f32 * velocidades_rotacion[0], 0.0);
+        let rotacion_planeta_2 = Vec3::new(0.0, time as f32 * velocidades_rotacion[1], 0.0);
+        let rotacion_planeta_3 = Vec3::new(0.0, time as f32 * velocidades_rotacion[2], 0.0);
+        let rotacion_planeta_4 = Vec3::new(0.0, time as f32 * velocidades_rotacion[3], 0.0);
+        let rotacion_planeta_5 = Vec3::new(0.0, time as f32 * velocidades_rotacion[4], 0.0);
+        let rotacion_planeta_6 = Vec3::new(0.0, time as f32 * velocidades_rotacion[5], 0.0);
+        let rotacion_planeta_7 = Vec3::new(0.0, time as f32 * velocidades_rotacion[6], 0.0);
+        let rotacion_planeta_8 = Vec3::new(0.0, time as f32 * velocidades_rotacion[7], 0.0);
+        let rotacion_planeta_9 = Vec3::new(0.0, time as f32 * velocidades_rotacion[8], 0.0);
+        let rotacion_planeta_10 = Vec3::new(0.0, time as f32 * velocidades_rotacion[9], 0.0);
+
+        let model_matrix_1 = create_model_matrix(Vec3::new(radios_orbitales[1] * (time as f32 * velocidades_orbitales[1]).cos(), radios_orbitales[1] * (time as f32 * velocidades_orbitales[1]).sin(), 0.0), scale, rotacion_planeta_1);
         let model_matrix_anillos = create_model_matrix(Vec3::new(radios_orbitales[1] * (time as f32 * velocidades_orbitales[1]).cos(), radios_orbitales[1] * (time as f32 * velocidades_orbitales[1]).sin(), 0.0), scale, rotation_anillos);
-        let model_matrix_2 = create_model_matrix(Vec3::new(radios_orbitales[0] * (time as f32 * velocidades_orbitales[0]).cos(), radios_orbitales[0] * (time as f32 * velocidades_orbitales[0]).sin(), 0.0), scale, rotation);
-        let model_matrix_3 = create_model_matrix(Vec3::new(0.0, 0.0, 0.0), scale, rotation);
-        let model_matrix_4 = create_model_matrix(Vec3::new(radios_orbitales[2] * (time as f32 * velocidades_orbitales[2]).cos(), radios_orbitales[2] * (time as f32 * velocidades_orbitales[2]).sin(), 0.0), scale, rotation);
-        let model_matrix_5 = create_model_matrix(Vec3::new(radios_orbitales[3] * (time as f32 * velocidades_orbitales[3]).cos(), radios_orbitales[3] * (time as f32 * velocidades_orbitales[3]).sin(), 0.0), scale, rotation);
-        let model_matrix_6 = create_model_matrix(Vec3::new(radios_orbitales[4] * (time as f32 * velocidades_orbitales[4]).cos(), radios_orbitales[4] * (time as f32 * velocidades_orbitales[4]).sin(), 0.0), scale, rotation);
-        let model_matrix_7 = create_model_matrix(Vec3::new(radios_orbitales[5] * (time as f32 * velocidades_orbitales[5]).cos(), radios_orbitales[5] * (time as f32 * velocidades_orbitales[5]).sin(), 0.0), scale, rotation);
-        let model_matrix_8 = create_model_matrix(Vec3::new(radios_orbitales[6] * (time as f32 * velocidades_orbitales[6]).cos(), radios_orbitales[6] * (time as f32 * velocidades_orbitales[6]).sin(), 0.0), scale, rotation);
-        let model_matrix_9 = create_model_matrix(Vec3::new(radios_orbitales[7] * (time as f32 * velocidades_orbitales[7]).cos(), radios_orbitales[7] * (time as f32 * velocidades_orbitales[7]).sin(), 0.0), scale, rotation);
-        let model_matrix_10 = create_model_matrix(Vec3::new(radios_orbitales[8] * (time as f32 * velocidades_orbitales[8]).cos(), radios_orbitales[8] * (time as f32 * velocidades_orbitales[8]).sin(), 0.0), scale, rotation);
+        let model_matrix_2 = create_model_matrix(Vec3::new(radios_orbitales[0] * (time as f32 * velocidades_orbitales[0]).cos(), radios_orbitales[0] * (time as f32 * velocidades_orbitales[0]).sin(), 0.0), scale, rotacion_planeta_2);
+        let model_matrix_3 = create_model_matrix(Vec3::new(0.0, 0.0, 0.0), scale, rotacion_planeta_10);
+        let model_matrix_4 = create_model_matrix(Vec3::new(radios_orbitales[2] * (time as f32 * velocidades_orbitales[2]).cos(), radios_orbitales[2] * (time as f32 * velocidades_orbitales[2]).sin(), 0.0), scale, rotacion_planeta_3);
+        let model_matrix_5 = create_model_matrix(Vec3::new(radios_orbitales[3] * (time as f32 * velocidades_orbitales[3]).cos(), radios_orbitales[3] * (time as f32 * velocidades_orbitales[3]).sin(), 0.0), scale, rotacion_planeta_4);
+        let model_matrix_6 = create_model_matrix(Vec3::new(radios_orbitales[4] * (time as f32 * velocidades_orbitales[4]).cos(), radios_orbitales[4] * (time as f32 * velocidades_orbitales[4]).sin(), 0.0), scale, rotacion_planeta_5);
+        let model_matrix_7 = create_model_matrix(Vec3::new(radios_orbitales[5] * (time as f32 * velocidades_orbitales[5]).cos(), radios_orbitales[5] * (time as f32 * velocidades_orbitales[5]).sin(), 0.0), scale, rotacion_planeta_6);
+        let model_matrix_8 = create_model_matrix(Vec3::new(radios_orbitales[6] * (time as f32 * velocidades_orbitales[6]).cos(), radios_orbitales[6] * (time as f32 * velocidades_orbitales[6]).sin(), 0.0), scale, rotacion_planeta_7);
+        let model_matrix_9 = create_model_matrix(Vec3::new(radios_orbitales[7] * (time as f32 * velocidades_orbitales[7]).cos(), radios_orbitales[7] * (time as f32 * velocidades_orbitales[7]).sin(), 0.0), scale, rotacion_planeta_8);
+        let model_matrix_10 = create_model_matrix(Vec3::new(radios_orbitales[8] * (time as f32 * velocidades_orbitales[8]).cos(), radios_orbitales[8] * (time as f32 * velocidades_orbitales[8]).sin(), 0.0), scale, rotacion_planeta_9);
 
         let uniforms_gaseoso = Uniforms { 
             model_matrix: model_matrix_1, 
@@ -647,7 +659,7 @@ fn render_shader_simplex(
 }
 
 fn handle_input(window: &Window, camera: &mut Camera, uniforms_cellular_puntas: &Uniforms) {
-    let movement_speed = 1.0; 
+    let movement_speed = 1.5; 
     let rotation_speed = PI / 50.0; 
 
     let mut movement = Vec3::new(0.0, 0.0, 0.0);
